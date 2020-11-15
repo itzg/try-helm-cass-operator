@@ -1,0 +1,25 @@
+This is a composite chart. Check out the subcharts:
+
+{{ range .Chart.Dependencies }}
+- {{ .Name }}
+{{ end }}
+
+Grafana is available at <http://localhost:3000> by port-forwarding with:
+
+  kubectl -n {{.Release.Namespace}} port-forward svc/{{ .Release.Namespace }}-grafana 3000:service
+
+The initial login credentials are admin / {{ index .Values "kube-prometheus-stack" "grafana" "adminPassword" }}
+
+Check the status of Cassandra cluster using
+
+  kubectl -n {{.Release.Namespace}} get cassdc/{{.Values.cassandra.dcName}} -o "jsonpath={.status.cassandraOperatorProgress}"
+
+Cassandra user and password can be obtained with
+
+  user=$(kubectl -n {{.Release.Namespace}} get secret {{include "deploy-ceres-gke.cassandraClusterName" .}}-superuser -o jsonpath='{.data.username}' | base64 -D)
+
+  password=$(kubectl -n {{.Release.Namespace}} get secret {{include "deploy-ceres-gke.cassandraClusterName" .}}-superuser -o jsonpath='{.data.password}' | base64 -D)
+
+With those you can cqlsh into the cluster using
+
+  kubectl -n {{.Release.Namespace}} exec {{include "deploy-ceres-gke.cassandraClusterName" .}}-{{.Values.cassandra.dcName}}-default-sts-0 -c cassandra -it -- cqlsh -u $user -p $password

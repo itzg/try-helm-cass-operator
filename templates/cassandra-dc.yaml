@@ -1,0 +1,85 @@
+{{ if .Values.cassandra.enabled -}}
+apiVersion: cassandra.datastax.com/v1beta1
+kind: CassandraDatacenter
+metadata:
+  # don't qualify name by release so that it avoids extra complexity in cassandra
+  # keyspace configs, etc
+  name: {{.Values.cassandra.dcName}}
+  namespace: {{.Release.Namespace}}
+spec:
+  clusterName: {{ include "deploy-ceres-gke.cassandraClusterName" . }}
+  serverType: cassandra
+  serverVersion: {{.Values.cassandra.serverVersion}}
+  managementApiAuth:
+    insecure: {}
+  size: {{.Values.cassandra.clusterSize}}
+  storageConfig:
+    cassandraDataVolumeClaimSpec:
+      storageClassName: {{ include "deploy-ceres-gke.cassandraStorageClassName" .}}
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{.Values.cassandra.storageSize}}
+  resources:
+{{.Values.cassandra.resources | toYaml | indent 4}}
+  nodeSelector:
+{{.Values.cassandra.nodeSelector | toYaml | indent 4}}
+  podTemplateSpec:
+    spec:
+      initContainers:
+        # resolving this startup check warning log
+        # Maximum number of memory map areas per process (vm.max_map_count) 65530 is too low, recommended value: 1048575, you can change it with sysctl.
+        # by working around this issue
+        # https://stackoverflow.com/questions/49543820/using-sysctls-in-google-kubernetes-engine-gke
+        # as documented here
+        # https://github.com/datastax/cass-operator/issues/187#issuecomment-671319791
+        - command:
+            - sysctl
+            - -w
+            - vm.max_map_count={{.Values.cassandra.vmMaxMapCount}}
+          image: busybox
+          name: configure-sysctl
+          securityContext:
+            privileged: true
+            runAsUser: 0
+      containers: []
+  config:
+    cassandra-yaml:
+      num_tokens: {{.Values.cassandra.numTokens}}
+      authenticator: org.apache.cassandra.auth.PasswordAuthenticator
+      authorizer: org.apache.cassandra.auth.CassandraAuthorizer
+      role_manager: org.apache.cassandra.auth.CassandraRoleManager
+{{- if .Values.cassandra.diskAccessMode }}
+      disk_access_mode: {{.Values.cassandra.diskAccessMode}}
+{{- end }}
+{{- if .Values.cassandra.memtableAllocationType }}
+      memtable_allocation_type: {{.Values.cassandra.memtableAllocationType}}
+{{- end }}
+{{- if .Values.cassandra.memtableOffheapSpaceInMb }}
+      memtable_offheap_space_in_mb: {{.Values.cassandra.memtableOffheapSpaceInMb}}
+{{- end }}
+{{- if .Values.cassandra.memtableHeapSpaceInMb }}
+      memtable_heap_space_in_mb: {{.Values.cassandra.memtableHeapSpaceInMb}}
+{{- end }}
+{{- if .Values.cassandra.fileCacheSizeInMb }}
+      file_cache_size_in_mb: {{.Values.cassandra.fileCacheSizeInMb}}
+{{- end }}
+{{- if regexMatch "^4\\." .Values.cassandra.serverVersion }}
+    jvm-server-options:
+      initial_heap_size: {{.Values.cassandra.heapSize}}
+      max_heap_size: {{.Values.cassandra.heapSize}}
+      additional-jvm-opts:
+        # As the database comes up for the first time, set system keyspaces RF
+        - "-Dcassandra.system_distributed_replication_dc_names={{.Values.cassandra.dcName}}"
+        - "-Dcassandra.system_distributed_replication_per_dc={{.Values.cassandra.systemKeyspaceReplication}}"
+{{- else }}
+    jvm-options:
+      initial_heap_size: {{.Values.cassandra.heapSize}}
+      max_heap_size: {{.Values.cassandra.heapSize}}
+      additional-jvm-opts:
+        # As the database comes up for the first time, set system keyspaces RF
+        - "-Dcassandra.system_distributed_replication_dc_names={{.Values.cassandra.dcName}}"
+        - "-Dcassandra.system_distributed_replication_per_dc={{.Values.cassandra.systemKeyspaceReplication}}"
+{{- end }}
+{{- end }}

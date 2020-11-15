@@ -1,0 +1,84 @@
+cassandra:
+  # Needs to be enabled after initial install of subchart's CRD
+  # enabled: true
+  dcName: dc1
+  # 3.11.7, 4.0.0
+  # See https://github.com/datastax/cass-operator/blob/master/operator/pkg/images/images.go#L106
+  serverVersion: "3.11.7"
+  clusterSize: 10
+  systemKeyspaceReplication: 3
+  storageClassName: cass-storage
+  storageClassType: pd-ssd
+  storageSize: 200Gi
+  nodeSelector:
+    purpose: cassandra
+  numTokens: 16
+  heapSize: "18G"
+  vmMaxMapCount: "1048575"
+  # auto, mmap, mmap_index_only, standard
+  # Refer to https://support.datastax.com/hc/en-us/articles/360027838911
+  # and https://issues.apache.org/jira/browse/CASSANDRA-15531
+  diskAccessMode: standard
+  # heap_buffers*, offheap_buffers, offheap_objects
+  # https://cassandra.apache.org/doc/latest/configuration/cass_yaml_file.html#memtable-allocation-type
+  memtableAllocationType: heap_buffers
+  # Default is 2048
+  # https://cassandra.apache.org/doc/latest/configuration/cass_yaml_file.html#memtable-offheap-space-in-mb
+  memtableOffheapSpaceInMb: "4096"
+  # Default is 2048
+  # https://cassandra.apache.org/doc/latest/configuration/cass_yaml_file.html#memtable-heap-space-in-mb
+  memtableHeapSpaceInMb: "4096"
+  # Default is 512
+  fileCacheSizeInMb: "1024"
+  resources:
+    requests:
+      memory: 56Gi
+      cpu: "15"
+    limits:
+      memory: 56Gi
+      # for n2-*-8 use 6
+      # for n2-*-16 use 15
+      cpu: "15"
+
+kube-prometheus-stack:
+  prometheusOperator:
+    nodeSelector: {"purpose": "apps"}
+  prometheus:
+    prometheusSpec:
+      nodeSelector: {"purpose": "apps"}
+      resources:
+        requests:
+          memory: 8Gi
+        limits:
+          memory: 8Gi
+  coreDns:
+    enabled: false
+  alertmanager:
+    enabled: false
+  grafana:
+    persistence:
+      enabled: true
+    nodeSelector: {"purpose": "apps"}
+    plugins:
+      # used by cassandra dashboards
+      - grafana-polystat-panel
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+    dashboards:
+      default:
+        cassandra-overview:
+          url: https://raw.githubusercontent.com/datastax/metric-collector-for-apache-cassandra/master/dashboards/grafana/generated-dashboards/overview.json
+        cassandra-condensed:
+          url: https://raw.githubusercontent.com/datastax/metric-collector-for-apache-cassandra/master/dashboards/grafana/generated-dashboards/cassandra-condensed.json
+        system-metrics:
+          url: https://raw.githubusercontent.com/datastax/metric-collector-for-apache-cassandra/master/dashboards/grafana/generated-dashboards/system-metrics.json
