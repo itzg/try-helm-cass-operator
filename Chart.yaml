@@ -1,6 +1,6 @@
 apiVersion: v2
-name: deploy-ceres-gke
-description: A Helm chart for Kubernetes
+name: try-helm-cass-operator
+description: A composite Helm chart that includes the cass-operator helm chart and monitoring
 
 type: application
 
